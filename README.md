@@ -1,2 +1,1 @@
-# dim0451_DIP
-(DIM0451) Digital Image Processing repository class
+# DIM0451 - Special Topics XII (Digital Image Processing and Computer Vision)
