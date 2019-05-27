@@ -9,11 +9,10 @@ from tqdm import tqdm
 def create_arg_parser():
     """"Creates and returns the ArgumentParser object."""
     parser = argparse.ArgumentParser(description='Description of Huffman encoding/deconding.')
-    parser.add_argument('-mode','-m','-M', choices=['e','d'], help='Mode (Encding or Decoding).', required=True)
+    parser.add_argument('-mode','-m','-M', choices=['e','d'], help='Mode (Encoding or Decoding).', required=True)
     parser.add_argument('-output','-o','-O', help='Path to store result files.', default='./')
-    parser.add_argument('-image','-i','-I', help='Path to the image file.')
-    parser.add_argument('-encoded','-e','-E', help='Path to the encoded file.')
-    parser.add_argument('-config','-c','-C', help='Path to the config file.')
+    parser.add_argument('-file','-f','-F', help='Path to the image file or encoded file.')
+    parser.add_argument('-color','-c','-C', choices=['rgb','gray'], help='Color (rgb or gray).', default='gray')
 
     return parser
 
@@ -131,7 +130,7 @@ def huffman(img):
     
     return code
 
-def pad_encoded_text(encoded_text):
+def apply_padding(encoded_text):
     extra_padding = 8 - len(encoded_text) % 8
     for i in range(extra_padding):
         encoded_text += "0"
@@ -162,33 +161,44 @@ def compress(img, code, filename, output_dir):
                     encoded_text += colors_map[ img[row,col,c] ]
             else:
                 encoded_text += colors_map[ img[row,col] ]
-    encoded_text = pad_encoded_text(encoded_text)
-    b = get_byte_array(encoded_text)
-    f.write(bytes(b))
-    f.close()
+    encoded_text = apply_padding(encoded_text)
+
+    configs  = str(code['width']) + '\n'
+    configs += str(code['height']) + '\n'
+    configs += str(code['channels']) + '\n'
+    configs += colors_str + 'vinicius'
     
-    f = open(output_dir + '/' + filename.split('/')[-1].split('.')[0] + '.config', 'w')
-    f.write(str(code['width']) + '\n')
-    f.write(str(code['height']) + '\n')
-    f.write(str(code['channels']) + '\n')
-    f.write(colors_str)
-    f.close    
+    txt_size = len(str(len(configs)))
+    configs = str(len(configs) + len(str(len(configs) + txt_size)) + 1) + '\n' + configs
+
+    f = open(output_dir + '/' + filename.split('/')[-1].split('.')[0] + '.vh', 'w')
+    f.write(configs)
+    f.close()
+
+    b = get_byte_array(encoded_text)
+    f = open(output_dir + '/' + filename.split('/')[-1].split('.')[0] + '.vh', 'ab')
+    f.write(bytes(b))
+    f.close()    
 
 ############################## Decoding section ##############################
 
 def get_config(fileconfig):
     code={}
-    with open(fileconfig, 'r') as f:
+    size = 0
+    with open(fileconfig, 'rb') as f:
         content = f.read()
-        lines = content.split('\n')
-        code['width'] = int(lines[0])
-        code['height'] = int(lines[1])
-        code['channels'] = int(lines[2])
-        for line in lines[3:]:
+        content = str(content)
+        size = len(content.split('vinicius')[0][2:])
+        lines = content.split('vinicius')[0][2:].split('\\n')
+        code['size'] = int(lines[0])
+        code['width'] = int(lines[1])
+        code['height'] = int(lines[2])
+        code['channels'] = int(lines[3])
+        for line in lines[4:]:
             color_bin = line.split(' ')
             if len(color_bin) >= 2:
                 code[color_bin[1]] = color_bin[0]
-    return code
+    return size, code
 
 def decode(code, config):
     image = np.zeros((config['height'],config['width']), dtype='uint8')
@@ -196,7 +206,7 @@ def decode(code, config):
         image = np.zeros((config['height'],config['width'],config['channels']), dtype='uint8')
     for row in tqdm(range(config['height'])):
         for col in range(config['width']):
-            for c in range(config['channels']):
+            for c in (range(config['channels'])):
                 value = -1
                 current = ''
                 while(code != ''):
@@ -211,25 +221,30 @@ def decode(code, config):
                     image[row,col] = value
     return image
 
-def decompress(filename, fileconfig, output_dir):
-    config = get_config(fileconfig)
+def decompress(filename, output_dir):
+    size, config = get_config(filename)
     with open(filename, 'rb') as f:
         code = ""
+        byte = f.read(config['size'] + 1)
         byte = f.read(1)
         while byte != b"":
             # Do stuff with byte.
             code += bin( ord(byte) )[2:].rjust(8, '0')
-            byte = f.read(1)    
+            byte = f.read(1)
     result = decode(code, config)
     cv2.imwrite(output_dir + '/' + filename.split('/')[-1].split('.')[0] + '.png', result)
 
 if __name__ == '__main__':
 	arg_parser = create_arg_parser()
 	parsed_args = arg_parser.parse_args(sys.argv[1:])
-
 	if parsed_args.mode == 'e':
-		img = cv2.imread(parsed_args.image, 0)
-		code = huffman(img)
-		compress(img, code, parsed_args.image[:-4], parsed_args.output)
+		if parsed_args.color == 'rgb':
+			img = cv2.imread(parsed_args.file)
+			code = huffman(img)
+			compress(img, code, parsed_args.file[:-4], parsed_args.output)
+		else:
+			img = cv2.imread(parsed_args.file, 0)
+			code = huffman(img)
+			compress(img, code, parsed_args.file[:-4], parsed_args.output)
 	else:
-		decompress(parsed_args.encoded, parsed_args.config, parsed_args.output)
+		decompress(parsed_args.file, parsed_args.output)
