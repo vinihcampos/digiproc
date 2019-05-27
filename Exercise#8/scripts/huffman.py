@@ -80,11 +80,11 @@ def inorder(node, code=""):
         colors[node.data] = code
         
     if node.left != None:
-        o,c = inorder(node.left, code+"1")
+        o,c = inorder(node.left, code+"0")
         output += o
         colors.update(c)
     if node.right != None:
-        o,c = inorder(node.right, code+"0")
+        o,c = inorder(node.right, code+"1")
         output += o
         colors.update(c)
         
@@ -184,36 +184,40 @@ def compress(img, code, filename, output_dir):
 
 def get_config(fileconfig):
     code={}
+    config={}
     size = 0
     with open(fileconfig, 'rb') as f:
         content = f.read()
         content = str(content)
         size = len(content.split('vinicius')[0][2:])
         lines = content.split('vinicius')[0][2:].split('\\n')
-        code['size'] = int(lines[0])
-        code['width'] = int(lines[1])
-        code['height'] = int(lines[2])
-        code['channels'] = int(lines[3])
+        config['size'] = int(lines[0])
+        config['width'] = int(lines[1])
+        config['height'] = int(lines[2])
+        config['channels'] = int(lines[3])
         for line in lines[4:]:
             color_bin = line.split(' ')
             if len(color_bin) >= 2:
-                code[color_bin[1]] = color_bin[0]
-    return size, code
+                code[int(color_bin[1],2)] = int(color_bin[0])
+    return size, config, code
 
-def decode(code, config):
+def decode(code, config, map_values):
     image = np.zeros((config['height'],config['width']), dtype='uint8')
     if config['channels'] > 1:
         image = np.zeros((config['height'],config['width'],config['channels']), dtype='uint8')
+    index = 0
+    last_valid = 0
+    length = len(code)
     for row in tqdm(range(config['height'])):
         for col in range(config['width']):
             for c in (range(config['channels'])):
                 value = -1
-                current = ''
-                while(code != ''):
-                    current += code[0]
-                    code = code[1:]
-                    if current in config:
-                        value = int(config[current])
+                while(index < length):
+                    number = int(''.join(map(str, code[last_valid:index+1] )),2)
+                    index += 1
+                    if number in map_values:
+                        value = map_values[number]
+                        last_valid = index
                         break
                 if config['channels'] > 1:
                     image[row,col,c] = value
@@ -222,7 +226,7 @@ def decode(code, config):
     return image
 
 def decompress(filename, output_dir):
-    size, config = get_config(filename)
+    size, config, map_values = get_config(filename)
     with open(filename, 'rb') as f:
         code = ""
         byte = f.read(config['size'] + 1)
@@ -231,7 +235,8 @@ def decompress(filename, output_dir):
             # Do stuff with byte.
             code += bin( ord(byte) )[2:].rjust(8, '0')
             byte = f.read(1)
-    result = decode(code, config)
+    code = [int(x) for x in code]
+    result = decode(code, config, map_values)
     cv2.imwrite(output_dir + '/' + filename.split('/')[-1].split('.')[0] + '.png', result)
 
 if __name__ == '__main__':
