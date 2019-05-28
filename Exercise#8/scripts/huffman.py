@@ -240,16 +240,16 @@ def decompress(filename, output_dir):
     cv2.imwrite(output_dir + '/' + filename.split('/')[-1].split('.')[0] + '.png', result)
 
 if __name__ == '__main__':
-	arg_parser = create_arg_parser()
-	parsed_args = arg_parser.parse_args(sys.argv[1:])
-	if parsed_args.mode == 'e':
-		if parsed_args.color == 'rgb':
-			img = cv2.imread(parsed_args.file)
-			code = huffman(img)
-			compress(img, code, parsed_args.file[:-4], parsed_args.output)
-		else:
-			img = cv2.imread(parsed_args.file, 0)
-			code = huffman(img)
-			compress(img, code, parsed_args.file[:-4], parsed_args.output)
-	else:
-		decompress(parsed_args.file, parsed_args.output)
+    arg_parser = create_arg_parser()
+    parsed_args = arg_parser.parse_args(sys.argv[1:])
+    if parsed_args.mode == 'e':
+        if parsed_args.color == 'rgb':
+            img = cv2.imread(parsed_args.file)
+            code = huffman(img)
+            compress(img, code, parsed_args.file, parsed_args.output)
+        else:
+            img = cv2.imread(parsed_args.file, 0)
+            code = huffman(img)
+            compress(img, code, parsed_args.file, parsed_args.output)
+    else:
+        decompress(parsed_args.file, parsed_args.output)
